@@ -17,11 +17,13 @@ export default function (Vue) {
 
   /**
    * Vuex init hook, injected into each instances init hooks list.
+   * 将store对象注入到Vue实例`this`中
    */
 
   function vuexInit () {
     const options = this.$options
     // store injection
+    // 如果options上存在store对象，则将store赋值给this.$store，否则将parent的$store赋值给this.$store
     if (options.store) {
       this.$store = typeof options.store === 'function'
         ? options.store()
