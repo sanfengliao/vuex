@@ -30,10 +30,13 @@ export default class ModuleCollection {
       assertRawModule(path, rawModule)
     }
 
+    // 创建一个module
     const newModule = new Module(rawModule, runtime)
     if (path.length === 0) {
+      // 如果path数组长度为0，则当前module为跟module
       this.root = newModule
     } else {
+      // 否则，获取父module，并将当前module添加到父module的children中
       const parent = this.get(path.slice(0, -1))
       parent.addChild(path[path.length - 1], newModule)
     }
@@ -47,10 +50,13 @@ export default class ModuleCollection {
   }
 
   unregister (path) {
+    // 获取父module
     const parent = this.get(path.slice(0, -1))
+    // 获取key
     const key = path[path.length - 1]
+    // 如果当前module正在运行中，返回
     if (!parent.getChild(key).runtime) return
-
+    // 从父module中删除key，
     parent.removeChild(key)
   }
 }
@@ -61,11 +67,14 @@ function update (path, targetModule, newModule) {
   }
 
   // update target module
+  // 更新module的actions、getters、mutations、
   targetModule.update(newModule)
 
   // update nested modules
+  // 如果newModule中存在modules(存在子module)
   if (newModule.modules) {
     for (const key in newModule.modules) {
+      // 如果targetModule不能存在key，则不更新
       if (!targetModule.getChild(key)) {
         if (process.env.NODE_ENV !== 'production') {
           console.warn(

@@ -10,31 +10,36 @@ export class Store {
     // Auto install if it is not done yet and `window` has `Vue`.
     // To allow users to avoid auto-installation in some cases,
     // this code should be placed here. See #731
+    // 如果没有安装Vuex插件，自动安装Vuex插件
     if (!Vue && typeof window !== 'undefined' && window.Vue) {
       install(window.Vue)
     }
 
+    // 在生产环境下进行一系列判断
     if (process.env.NODE_ENV !== 'production') {
+      // 必须在new Store前执行Vue.use(Vuex)
       assert(Vue, `must call Vue.use(Vuex) before creating a store instance.`)
+      // 浏览器必须支持Promise
       assert(typeof Promise !== 'undefined', `vuex requires a Promise polyfill in this browser.`)
+      // Store是个构造函数, 必须使用new来构造
       assert(this instanceof Store, `store must be called with the new operator.`)
     }
 
     const {
       plugins = [],
-      strict = false
+      strict = false // 严格模式下如果不实用mutation修改数据，会报错
     } = options
 
     // store internal state
-    this._committing = false
-    this._actions = Object.create(null)
-    this._actionSubscribers = []
-    this._mutations = Object.create(null)
-    this._wrappedGetters = Object.create(null)
-    this._modules = new ModuleCollection(options)
-    this._modulesNamespaceMap = Object.create(null)
-    this._subscribers = []
-    this._watcherVM = new Vue()
+    this._committing = false // 是否在进行提交状态的标识
+    this._actions = Object.create(null) // action操作对象
+    this._actionSubscribers = [] // 
+    this._mutations = Object.create(null) // mutation才走哦对象
+    this._wrappedGetters = Object.create(null) // 封装后的getter集合对象
+    this._modules = new ModuleCollection(options) // Vuex支持store分模块传入，存储分析后的modules
+    this._modulesNamespaceMap = Object.create(null) // 模块命名空间map
+    this._subscribers = [] // 订阅函数集合，Vuex提供了subscribe功能
+    this._watcherVM = new Vue()// Vue组件用于watch监视变化
 
     // bind commit and dispatch to self
     const store = this
