@@ -13,6 +13,10 @@ export default class ModuleCollection {
     }, this.root)
   }
 
+  /**
+   * 如果module的namespaced则拼接命名空间
+   * @param {Array} path 
+   */
   getNamespace (path) {
     let module = this.root
     return path.reduce((namespace, key) => {

@@ -272,43 +272,63 @@ function resetStoreVM (store, state, hot) {
     Vue.nextTick(() => oldVm.$destroy())
   }
 }
-
+/**
+ * 
+ * @param {Store} store store对象
+ * @param {Object} rootState state
+ * @param {Array} path module路径
+ * @param {Object} module 对应的module
+ * @param {*} hot 
+ */
 function installModule (store, rootState, path, module, hot) {
+  // 是否是根结点
   const isRoot = !path.length
+  // 获取namespace
   const namespace = store._modules.getNamespace(path)
 
   // register in namespace map
+  // 如果namespace不为空，则将module存在store的_modulesNamespaceMap中
   if (module.namespaced) {
     store._modulesNamespaceMap[namespace] = module
   }
 
   // set state
+  // 如果不是根结点且不是热更新，则设置state
   if (!isRoot && !hot) {
+    // 获取父亲对应的state
     const parentState = getNestedState(rootState, path.slice(0, -1))
+    // 获取需要设置的key
     const moduleName = path[path.length - 1]
     store._withCommit(() => {
+      // 在父state设置key为moduleName响应式数据
       Vue.set(parentState, moduleName, module.state)
     })
   }
 
   const local = module.context = makeLocalContext(store, namespace, path)
 
+
+  // 遍历module的mutation 注册mutation
   module.forEachMutation((mutation, key) => {
+    // 这里的mutation就是我们在创建Store实例时定义的mutation
+    // 拼接namespaceType, 这是store.mutions对应的aciton key，
     const namespacedType = namespace + key
     registerMutation(store, namespacedType, mutation, local)
   })
 
+  // 注册action
   module.forEachAction((action, key) => {
     const type = action.root ? key : namespace + key
     const handler = action.handler || action
     registerAction(store, type, handler, local)
   })
-
+  // 注册 getter
   module.forEachGetter((getter, key) => {
     const namespacedType = namespace + key
     registerGetter(store, namespacedType, getter, local)
   })
 
+  // 递归注册子module
   module.forEachChild((child, key) => {
     installModule(store, rootState, path.concat(key), child, hot)
   })
@@ -317,16 +337,19 @@ function installModule (store, rootState, path, module, hot) {
 /**
  * make localized dispatch, commit, getters and state
  * if there is no namespace, just use root ones
+ * 设置当前module的dispatch, commit, getters and state，如果没有namespace，则使用rootmodule的dispatch, commit, getters and state
  */
 function makeLocalContext (store, namespace, path) {
+  // 室友存在namespace 
   const noNamespace = namespace === ''
 
   const local = {
+    // 如果不存在namespace，则使用store实例的dispath，否则
     dispatch: noNamespace ? store.dispatch : (_type, _payload, _options) => {
       const args = unifyObjectStyle(_type, _payload, _options)
       const { payload, options } = args
       let { type } = args
-
+      // 如果options不存在或options.root不为true，则dispath的不是rootModule的action，需要拼接type
       if (!options || !options.root) {
         type = namespace + type
         if (process.env.NODE_ENV !== 'production' && !store._actions[type]) {
@@ -334,15 +357,15 @@ function makeLocalContext (store, namespace, path) {
           return
         }
       }
-
+      // store派发name为type的aciton
       return store.dispatch(type, payload)
     },
-
+    // 与action同理
     commit: noNamespace ? store.commit : (_type, _payload, _options) => {
       const args = unifyObjectStyle(_type, _payload, _options)
       const { payload, options } = args
       let { type } = args
-
+    
       if (!options || !options.root) {
         type = namespace + type
         if (process.env.NODE_ENV !== 'production' && !store._mutations[type]) {
@@ -377,9 +400,13 @@ function makeLocalGetters (store, namespace) {
   const splitPos = namespace.length
   Object.keys(store.getters).forEach(type => {
     // skip if the target getter is not match this namespace
+    // module的getter最终都会挂载在store的getter上，key的形式为`some/nested/module/someGetter`
+
+    // 如果该getters的key的namespace不是子module对应namespace，则返回
     if (type.slice(0, splitPos) !== namespace) return
 
     // extract local getter type
+    // 切割获取子module中对应的getter的key，getter的type
     const localType = type.slice(splitPos)
 
     // Add a port to the getters proxy.
@@ -394,14 +421,31 @@ function makeLocalGetters (store, namespace) {
   return gettersProxy
 }
 
+/**
+ * 
+ * @param {Store} store Store对象
+ * @param {String} type  mutation type，store通过这个type 来 获取 对应module的action 并 commit
+ * @param {Function} handler 我们定义的Store时定义mutation函数
+ * @param {State} local 当前module
+ */
 function registerMutation (store, type, handler, local) {
+  // 如果store的_mucations中不存在key为type的mutaion，则创建m
   const entry = store._mutations[type] || (store._mutations[type] = [])
+  // 定义wrappedMutationHandler并添加到store._mutations中,这里的payload就是我们mutation中传递进来的payload
   entry.push(function wrappedMutationHandler (payload) {
     handler.call(store, local.state, payload)
   })
 }
 
+/**
+ * 
+ * @param {*} store Store实例
+ * @param {*} type action type store通过这个type 来 获取 对应module的action并dispath
+ * @param {*} handler 我们定义Store时对应的action函数
+ * @param {*} local 当前的module
+ */
 function registerAction (store, type, handler, local) {
+  // 如果store的_actions中不存在key为type的aciton，则创建
   const entry = store._actions[type] || (store._actions[type] = [])
   entry.push(function wrappedActionHandler (payload, cb) {
     let res = handler.call(store, {
@@ -425,20 +469,29 @@ function registerAction (store, type, handler, local) {
     }
   })
 }
+/**
+ * 
+ * @param {*} store Store实例
+ * @param {*} type action type store通过这个type 来 获取对应的module的getter
+ * @param {*} handler 我们定义module
+ * @param {*} local 当前的module
+ */
 
 function registerGetter (store, type, rawGetter, local) {
+  // 判断是否有重复getter
   if (store._wrappedGetters[type]) {
     if (process.env.NODE_ENV !== 'production') {
       console.error(`[vuex] duplicate getter key: ${type}`)
     }
     return
   }
+  
   store._wrappedGetters[type] = function wrappedGetter (store) {
     return rawGetter(
-      local.state, // local state
-      local.getters, // local getters
-      store.state, // root state
-      store.getters // root getters
+      local.state, // local state 子module的state
+      local.getters, // local getters 子module的getter
+      store.state, // root state rootModule的state
+      store.getters // root getters rootMOdule的state
     )
   }
 }
