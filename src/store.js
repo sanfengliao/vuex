@@ -168,8 +168,9 @@ export class Store {
       assert(Array.isArray(path), `module path must be a string or an Array.`)
       assert(path.length > 0, 'cannot register the root module by using registerModule.')
     }
-
+    // 先在module注册模块
     this._modules.register(path, rawModule)
+    // 在安装模块
     installModule(this, this.state, path, this._modules.get(path), options.preserveState)
     // reset store to update getters...
     resetStoreVM(this, this.state)
@@ -234,9 +235,13 @@ function resetStoreVM (store, state, hot) {
   store.getters = {}
   const wrappedGetters = store._wrappedGetters
   const computed = {}
+  // 遍历store的wraperGetters
   forEachValue(wrappedGetters, (fn, key) => {
     // use computed to leverage its lazy-caching mechanism
+
+    // 定义Vue的options中的computed属性，为下面的new Vue实例作准备
     computed[key] = () => fn(store)
+    // 为store的getters定义get函数，是的store.getters[key]可以获取到对应的getter返回值
     Object.defineProperty(store.getters, key, {
       get: () => store._vm[key],
       enumerable: true // for local getters
@@ -248,6 +253,8 @@ function resetStoreVM (store, state, hot) {
   // some funky global mixins
   const silent = Vue.config.silent
   Vue.config.silent = true
+  // 通过new一个Vue实例使得store的state和getter成为响应式数据
+  // 到这里就基本可以知道Vuex的本质是一个Vue实例，Store的state作为Vue实例的date，getter作为Vue实例的computed
   store._vm = new Vue({
     data: {
       $$state: state
@@ -260,7 +267,7 @@ function resetStoreVM (store, state, hot) {
   if (store.strict) {
     enableStrictMode(store)
   }
-
+  // 销毁老的Vue实例
   if (oldVm) {
     if (hot) {
       // dispatch changes in all subscribed watchers
@@ -496,6 +503,10 @@ function registerGetter (store, type, rawGetter, local) {
   }
 }
 
+/**
+ * 严格模式下监听是否是通过mutation更新对象的
+ * @param {Store} store 
+ */
 function enableStrictMode (store) {
   store._vm.$watch(function () { return this._data.$$state }, () => {
     if (process.env.NODE_ENV !== 'production') {
